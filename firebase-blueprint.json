@@ -1,0 +1,519 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Factory user operational role and workshop assignment without PII",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["operator", "technician", "supervisor"]
+        },
+        "workshop": {
+          "type": "string",
+          "enum": ["全厂统筹", "前处理车间", "提取浓缩车间", "制剂车间", "包装车间"]
+        },
+        "factoryId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "role", "workshop", "factoryId", "createdAt", "updatedAt"]
+    },
+    "UserContact": {
+      "title": "UserContact",
+      "description": "Private PII contact record isolated in user private subcollection",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "Equipment": {
+      "title": "Equipment",
+      "description": "TCM pharmaceutical manufacturing equipment ledger and lifecycle state",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "factoryId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "code": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "workshop": {
+          "type": "string",
+          "enum": ["前处理车间", "提取浓缩车间", "制剂车间", "包装车间"]
+        },
+        "processSection": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "manufacturer": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "specs": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "installDate": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "maintenanceCycleDays": {
+          "type": "number"
+        },
+        "lifecycleStage": {
+          "type": "string",
+          "enum": ["commissioning", "active", "overhaul", "sealed", "scrapped"]
+        },
+        "healthStatus": {
+          "type": "string",
+          "enum": ["normal", "attention", "repairing", "stopped"]
+        },
+        "lastInspectedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "nextMaintenanceDate": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "factoryId",
+        "code",
+        "name",
+        "workshop",
+        "processSection",
+        "model",
+        "manufacturer",
+        "specs",
+        "installDate",
+        "maintenanceCycleDays",
+        "lifecycleStage",
+        "healthStatus",
+        "lastInspectedAt",
+        "nextMaintenanceDate",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RepairOrder": {
+      "title": "RepairOrder",
+      "description": "Equipment fault report and closed-loop maintenance work order",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "factoryId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "orderNo": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "equipmentId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "equipmentCode": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "equipmentName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "workshop": {
+          "type": "string",
+          "enum": ["前处理车间", "提取浓缩车间", "制剂车间", "包装车间"]
+        },
+        "reporterUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "reporterName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "assigneeUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "assigneeName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "faultCategory": {
+          "type": "string",
+          "enum": ["机械传动", "电气控制", "密封渗漏", "温压异常", "清洁与筛网", "其他故障"]
+        },
+        "urgency": {
+          "type": "string",
+          "enum": ["normal", "high", "critical"]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "verifying", "closed"]
+        },
+        "rootCause": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "resolution": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "downtimeMinutes": {
+          "type": "number"
+        },
+        "partsSummary": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "factoryId",
+        "orderNo",
+        "equipmentId",
+        "equipmentCode",
+        "equipmentName",
+        "workshop",
+        "reporterUid",
+        "reporterName",
+        "assigneeUid",
+        "assigneeName",
+        "faultCategory",
+        "urgency",
+        "description",
+        "status",
+        "rootCause",
+        "resolution",
+        "downtimeMinutes",
+        "partsSummary",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "InspectionRecord": {
+      "title": "InspectionRecord",
+      "description": "Daily equipment inspection log with optional linked repair order",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "factoryId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "equipmentId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "equipmentCode": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "equipmentName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "workshop": {
+          "type": "string",
+          "enum": ["前处理车间", "提取浓缩车间", "制剂车间", "包装车间"]
+        },
+        "inspectorUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "inspectorName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "shift": {
+          "type": "string",
+          "enum": ["早班", "中班", "夜班"]
+        },
+        "overallResult": {
+          "type": "string",
+          "enum": ["pass", "abnormal"]
+        },
+        "summaryNote": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "checkItemsSummary": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "linkedOrderNo": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "factoryId",
+        "equipmentId",
+        "equipmentCode",
+        "equipmentName",
+        "workshop",
+        "inspectorUid",
+        "inspectorName",
+        "shift",
+        "overallResult",
+        "summaryNote",
+        "checkItemsSummary",
+        "linkedOrderNo",
+        "createdAt"
+      ]
+    },
+    "SparePart": {
+      "title": "SparePart",
+      "description": "Wearable spare part inventory for TCM manufacturing equipment",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "factoryId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "partCode": {
+          "type": "string",
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "spec": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "applicableWorkshop": {
+          "type": "string",
+          "enum": ["通用备件", "前处理车间", "提取浓缩车间", "制剂车间", "包装车间"]
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 16
+        },
+        "stockQty": {
+          "type": "number"
+        },
+        "minThreshold": {
+          "type": "number"
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "factoryId",
+        "partCode",
+        "name",
+        "spec",
+        "applicableWorkshop",
+        "unit",
+        "stockQty",
+        "minThreshold",
+        "updatedBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LifecycleLog": {
+      "title": "LifecycleLog",
+      "description": "Immutable equipment lifecycle audit event log",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "factoryId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "equipmentId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "equipmentCode": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "eventType": {
+          "type": "string",
+          "enum": ["commissioned", "stage_change", "inspection", "repair_opened", "repair_closed", "maintenance"]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "actorUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "actorName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "factoryId",
+        "equipmentId",
+        "equipmentCode",
+        "eventType",
+        "title",
+        "detail",
+        "actorUid",
+        "actorName",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User role and workshop assignment profile"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserContact" },
+      "description": "Isolated private PII contact information for user"
+    },
+    "/equipment/{equipmentId}": {
+      "schema": { "$ref": "#/entities/Equipment" },
+      "description": "TCM factory equipment master ledger"
+    },
+    "/repairOrders/{orderId}": {
+      "schema": { "$ref": "#/entities/RepairOrder" },
+      "description": "Closed-loop equipment fault repair work orders"
+    },
+    "/inspections/{inspectionId}": {
+      "schema": { "$ref": "#/entities/InspectionRecord" },
+      "description": "Daily workshop equipment inspection records"
+    },
+    "/spareParts/{partId}": {
+      "schema": { "$ref": "#/entities/SparePart" },
+      "description": "Wearable spare parts inventory ledger"
+    },
+    "/lifecycleLogs/{logId}": {
+      "schema": { "$ref": "#/entities/LifecycleLog" },
+      "description": "Immutable equipment lifecycle timeline events"
+    }
+  }
+}

@@ -1,0 +1,420 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==================== Core Helper Primitives ====================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerified() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'wylvyx@gmail.com';
+    }
+
+    function userDocPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function hasUserProfile() {
+      return isVerified() && exists(userDocPath(request.auth.uid));
+    }
+
+    function currentUserRole() {
+      return get(userDocPath(request.auth.uid)).data.role;
+    }
+
+    function isSupervisor() {
+      return isBootstrappedAdmin() || (hasUserProfile() && currentUserRole() == 'supervisor');
+    }
+
+    function isTechnicianOrSupervisor() {
+      return isSupervisor() || (hasUserProfile() && currentUserRole() in ['technician', 'supervisor']);
+    }
+
+    function isFactoryMember() {
+      return isSupervisor() || hasUserProfile();
+    }
+
+    function isValidWorkshop(w) {
+      return w is string && w in ['前处理车间', '提取浓缩车间', '制剂车间', '包装车间'];
+    }
+
+    // ==================== Entity Validation Helpers ====================
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'role', 'workshop', 'factoryId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'role', 'workshop', 'factoryId', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.role is string && data.role in ['operator', 'technician', 'supervisor']
+        && data.workshop is string && data.workshop in ['全厂统筹', '前处理车间', '提取浓缩车间', '制剂车间', '包装车间']
+        && data.factoryId == 'bencao-main'
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserContact(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidEquipment(data) {
+      return data.keys().hasAll([
+          'id', 'factoryId', 'code', 'name', 'workshop', 'processSection',
+          'model', 'manufacturer', 'specs', 'installDate', 'maintenanceCycleDays',
+          'lifecycleStage', 'healthStatus', 'lastInspectedAt', 'nextMaintenanceDate',
+          'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'factoryId', 'code', 'name', 'workshop', 'processSection',
+          'model', 'manufacturer', 'specs', 'installDate', 'maintenanceCycleDays',
+          'lifecycleStage', 'healthStatus', 'lastInspectedAt', 'nextMaintenanceDate',
+          'createdBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.factoryId == 'bencao-main'
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 32 && data.code.matches('^[A-Z0-9\\-]+$')
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && isValidWorkshop(data.workshop)
+        && data.processSection is string && data.processSection.size() >= 1 && data.processSection.size() <= 64
+        && data.model is string && data.model.size() >= 1 && data.model.size() <= 80
+        && data.manufacturer is string && data.manufacturer.size() >= 1 && data.manufacturer.size() <= 100
+        && data.specs is string && data.specs.size() <= 200
+        && data.installDate is string && data.installDate.size() >= 4 && data.installDate.size() <= 32
+        && data.maintenanceCycleDays is number && data.maintenanceCycleDays >= 1 && data.maintenanceCycleDays <= 3650
+        && data.lifecycleStage is string && data.lifecycleStage in ['commissioning', 'active', 'overhaul', 'sealed', 'scrapped']
+        && data.healthStatus is string && data.healthStatus in ['normal', 'attention', 'repairing', 'stopped']
+        && data.lastInspectedAt is string && data.lastInspectedAt.size() <= 64
+        && data.nextMaintenanceDate is string && data.nextMaintenanceDate.size() <= 32
+        && isValidId(data.createdBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRepairOrder(data) {
+      return data.keys().hasAll([
+          'id', 'factoryId', 'orderNo', 'equipmentId', 'equipmentCode', 'equipmentName',
+          'workshop', 'reporterUid', 'reporterName', 'assigneeUid', 'assigneeName',
+          'faultCategory', 'urgency', 'description', 'status', 'rootCause',
+          'resolution', 'downtimeMinutes', 'partsSummary', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'factoryId', 'orderNo', 'equipmentId', 'equipmentCode', 'equipmentName',
+          'workshop', 'reporterUid', 'reporterName', 'assigneeUid', 'assigneeName',
+          'faultCategory', 'urgency', 'description', 'status', 'rootCause',
+          'resolution', 'downtimeMinutes', 'partsSummary', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.factoryId == 'bencao-main'
+        && data.orderNo is string && data.orderNo.size() >= 3 && data.orderNo.size() <= 32 && data.orderNo.matches('^[A-Z0-9\\-]+$')
+        && isValidId(data.equipmentId)
+        && data.equipmentCode is string && data.equipmentCode.size() >= 2 && data.equipmentCode.size() <= 32
+        && data.equipmentName is string && data.equipmentName.size() >= 2 && data.equipmentName.size() <= 100
+        && isValidWorkshop(data.workshop)
+        && isValidId(data.reporterUid)
+        && data.reporterName is string && data.reporterName.size() >= 1 && data.reporterName.size() <= 80
+        && data.assigneeUid is string && data.assigneeUid.size() <= 128
+        && data.assigneeName is string && data.assigneeName.size() <= 80
+        && data.faultCategory is string && data.faultCategory in ['机械传动', '电气控制', '密封渗漏', '温压异常', '清洁与筛网', '其他故障']
+        && data.urgency is string && data.urgency in ['normal', 'high', 'critical']
+        && data.description is string && data.description.size() >= 2 && data.description.size() <= 600
+        && data.status is string && data.status in ['pending', 'in_progress', 'verifying', 'closed']
+        && data.rootCause is string && data.rootCause.size() <= 400
+        && data.resolution is string && data.resolution.size() <= 600
+        && data.downtimeMinutes is number && data.downtimeMinutes >= 0 && data.downtimeMinutes <= 100000
+        && data.partsSummary is string && data.partsSummary.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInspectionRecord(data) {
+      return data.keys().hasAll([
+          'id', 'factoryId', 'equipmentId', 'equipmentCode', 'equipmentName',
+          'workshop', 'inspectorUid', 'inspectorName', 'shift', 'overallResult',
+          'summaryNote', 'checkItemsSummary', 'linkedOrderNo', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'factoryId', 'equipmentId', 'equipmentCode', 'equipmentName',
+          'workshop', 'inspectorUid', 'inspectorName', 'shift', 'overallResult',
+          'summaryNote', 'checkItemsSummary', 'linkedOrderNo', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.factoryId == 'bencao-main'
+        && isValidId(data.equipmentId)
+        && data.equipmentCode is string && data.equipmentCode.size() >= 2 && data.equipmentCode.size() <= 32
+        && data.equipmentName is string && data.equipmentName.size() >= 2 && data.equipmentName.size() <= 100
+        && isValidWorkshop(data.workshop)
+        && isValidId(data.inspectorUid)
+        && data.inspectorName is string && data.inspectorName.size() >= 1 && data.inspectorName.size() <= 80
+        && data.shift is string && data.shift in ['早班', '中班', '夜班']
+        && data.overallResult is string && data.overallResult in ['pass', 'abnormal']
+        && data.summaryNote is string && data.summaryNote.size() <= 500
+        && data.checkItemsSummary is string && data.checkItemsSummary.size() >= 2 && data.checkItemsSummary.size() <= 1000
+        && data.linkedOrderNo is string && data.linkedOrderNo.size() <= 32
+        && data.createdAt is timestamp;
+    }
+
+    function isValidSparePart(data) {
+      return data.keys().hasAll([
+          'id', 'factoryId', 'partCode', 'name', 'spec', 'applicableWorkshop',
+          'unit', 'stockQty', 'minThreshold', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'factoryId', 'partCode', 'name', 'spec', 'applicableWorkshop',
+          'unit', 'stockQty', 'minThreshold', 'updatedBy', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.factoryId == 'bencao-main'
+        && data.partCode is string && data.partCode.size() >= 2 && data.partCode.size() <= 32 && data.partCode.matches('^[A-Z0-9\\-]+$')
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.spec is string && data.spec.size() >= 1 && data.spec.size() <= 120
+        && data.applicableWorkshop is string && data.applicableWorkshop in ['通用备件', '前处理车间', '提取浓缩车间', '制剂车间', '包装车间']
+        && data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 16
+        && data.stockQty is number && data.stockQty >= 0 && data.stockQty <= 100000
+        && data.minThreshold is number && data.minThreshold >= 0 && data.minThreshold <= 10000
+        && isValidId(data.updatedBy)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLifecycleLog(data) {
+      return data.keys().hasAll([
+          'id', 'factoryId', 'equipmentId', 'equipmentCode', 'eventType',
+          'title', 'detail', 'actorUid', 'actorName', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'factoryId', 'equipmentId', 'equipmentCode', 'eventType',
+          'title', 'detail', 'actorUid', 'actorName', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.factoryId == 'bencao-main'
+        && isValidId(data.equipmentId)
+        && data.equipmentCode is string && data.equipmentCode.size() >= 2 && data.equipmentCode.size() <= 32
+        && data.eventType is string && data.eventType in ['commissioned', 'stage_change', 'inspection', 'repair_opened', 'repair_closed', 'maintenance']
+        && data.title is string && data.title.size() >= 2 && data.title.size() <= 120
+        && data.detail is string && data.detail.size() >= 1 && data.detail.size() <= 500
+        && isValidId(data.actorUid)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 80
+        && data.createdAt is timestamp;
+    }
+
+    // ==================== Collection Rules ====================
+    match /users/{userId} {
+      allow get: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isFactoryMember());
+      allow list: if isVerified() && resource.data.factoryId == 'bencao-main';
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (incoming().role == 'operator' || (isBootstrappedAdmin() && incoming().role == 'supervisor'));
+      allow update: if isVerified()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().factoryId == existing().factoryId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isSupervisor() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'workshop', 'displayName', 'updatedAt']))
+          || (isOwner(userId) && incoming().role == existing().role && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'workshop', 'updatedAt']))
+        );
+      allow delete: if false;
+
+      match /private/{docId} {
+        allow get: if isVerified() && isValidId(userId) && isValidId(docId) && (request.auth.uid == userId || isSupervisor());
+        allow list: if false;
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(docId)
+          && docId == 'contact'
+          && isValidUserContact(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(docId)
+          && docId == 'contact'
+          && isValidUserContact(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+        allow delete: if false;
+      }
+    }
+
+    match /equipment/{equipmentId} {
+      allow get: if isVerified() && isValidId(equipmentId) && isFactoryMember();
+      allow list: if isVerified() && resource.data.factoryId == 'bencao-main';
+      allow create: if isVerified()
+        && isValidId(equipmentId)
+        && isValidEquipment(incoming())
+        && incoming().id == equipmentId
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isSupervisor();
+      allow update: if isVerified()
+        && isValidId(equipmentId)
+        && isValidEquipment(incoming())
+        && incoming().id == existing().id
+        && incoming().factoryId == existing().factoryId
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().lifecycleStage != 'scrapped' || isSupervisor())
+        && (
+          (isSupervisor() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'code', 'name', 'workshop', 'processSection', 'model', 'manufacturer',
+            'specs', 'installDate', 'maintenanceCycleDays', 'lifecycleStage',
+            'healthStatus', 'lastInspectedAt', 'nextMaintenanceDate', 'updatedAt'
+          ]))
+          || (isFactoryMember() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'healthStatus', 'lastInspectedAt', 'nextMaintenanceDate', 'updatedAt'
+          ]))
+        );
+      allow delete: if isSupervisor() && isValidId(equipmentId);
+    }
+
+    match /repairOrders/{orderId} {
+      allow get: if isVerified() && isValidId(orderId) && isFactoryMember();
+      allow list: if isVerified() && resource.data.factoryId == 'bencao-main';
+      allow create: if isVerified()
+        && isValidId(orderId)
+        && isValidRepairOrder(incoming())
+        && incoming().id == orderId
+        && incoming().reporterUid == request.auth.uid
+        && (incoming().status == 'pending' || isSupervisor())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isFactoryMember()
+        && (
+          exists(/databases/$(database)/documents/equipment/$(incoming().equipmentId))
+          || existsAfter(/databases/$(database)/documents/equipment/$(incoming().equipmentId))
+        );
+      allow update: if isVerified()
+        && isValidId(orderId)
+        && isValidRepairOrder(incoming())
+        && incoming().id == existing().id
+        && incoming().factoryId == existing().factoryId
+        && incoming().orderNo == existing().orderNo
+        && incoming().equipmentId == existing().equipmentId
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'closed' || isSupervisor())
+        && (
+          (isSupervisor() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'assigneeUid', 'assigneeName', 'status', 'urgency', 'rootCause',
+            'resolution', 'downtimeMinutes', 'partsSummary', 'updatedAt'
+          ]))
+          || (
+            isTechnicianOrSupervisor()
+            && existing().status in ['pending', 'in_progress']
+            && incoming().status in ['in_progress', 'verifying']
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'assigneeUid', 'assigneeName', 'status', 'rootCause',
+              'resolution', 'downtimeMinutes', 'partsSummary', 'updatedAt'
+            ])
+          )
+          || (
+            isFactoryMember()
+            && existing().status == 'verifying'
+            && incoming().status == 'closed'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+      allow delete: if isSupervisor() && isValidId(orderId);
+    }
+
+    match /inspections/{inspectionId} {
+      allow get: if isVerified() && isValidId(inspectionId) && isFactoryMember();
+      allow list: if isVerified() && resource.data.factoryId == 'bencao-main';
+      allow create: if isVerified()
+        && isValidId(inspectionId)
+        && isValidInspectionRecord(incoming())
+        && incoming().id == inspectionId
+        && incoming().inspectorUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && isFactoryMember()
+        && (
+          exists(/databases/$(database)/documents/equipment/$(incoming().equipmentId))
+          || existsAfter(/databases/$(database)/documents/equipment/$(incoming().equipmentId))
+        );
+      allow update, delete: if false;
+    }
+
+    match /spareParts/{partId} {
+      allow get: if isVerified() && isValidId(partId) && isFactoryMember();
+      allow list: if isVerified() && resource.data.factoryId == 'bencao-main';
+      allow create: if isVerified()
+        && isValidId(partId)
+        && isValidSparePart(incoming())
+        && incoming().id == partId
+        && incoming().updatedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && isSupervisor();
+      allow update: if isVerified()
+        && isValidId(partId)
+        && isValidSparePart(incoming())
+        && incoming().id == existing().id
+        && incoming().factoryId == existing().factoryId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time
+        && (
+          (isSupervisor() && incoming().diff(existing()).affectedKeys().hasOnly([
+            'partCode', 'name', 'spec', 'applicableWorkshop', 'unit',
+            'stockQty', 'minThreshold', 'updatedBy', 'updatedAt'
+          ]))
+          || (
+            isTechnicianOrSupervisor()
+            && incoming().stockQty <= existing().stockQty
+            && incoming().diff(existing()).affectedKeys().hasOnly(['stockQty', 'updatedBy', 'updatedAt'])
+          )
+        );
+      allow delete: if isSupervisor() && isValidId(partId);
+    }
+
+    match /lifecycleLogs/{logId} {
+      allow get: if isVerified() && isValidId(logId) && isFactoryMember();
+      allow list: if isVerified() && resource.data.factoryId == 'bencao-main';
+      allow create: if isVerified()
+        && isValidId(logId)
+        && isValidLifecycleLog(incoming())
+        && incoming().id == logId
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && isFactoryMember();
+      allow update, delete: if false;
+    }
+  }
+}

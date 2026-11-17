@@ -1,0 +1,6 @@
+{
+  "name": "本草智维 · 中药设备全生命周期管理",
+  "description": "面向中医药制造企业的设备全生命周期管理、日常点检、故障报修闭环与易损备件联动平台",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
